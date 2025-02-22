@@ -4,7 +4,7 @@ using Test
 
 using FiniteDifferences, Flux
 
-using SmoothMixtures: logprob, logsumexp, sumlogsumexp_logprob, sumlogsumexp_logprob_reference
+using SmoothMixtures: logprob, logsumexp, sumlogsumexp_logprob
 
 
 function sumlogsumexp_logprob_reference(logits, x)
