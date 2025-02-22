@@ -1,11 +1,26 @@
+using SmoothMixtures
+using SmoothMixtures.CUDA
+using Test
+
+using FiniteDifferences, Flux
+
+using SmoothMixtures: logprob, logsumexp, sumlogsumexp_logprob, sumlogsumexp_logprob_reference
+
+
+function sumlogsumexp_logprob_reference(logits, x)
+	log_probs, max_ = logprob(logits, x)
+	sum(logsumexp(log_probs, dims = 1))
+end
 
 @testset "Categorical distribution" begin 
-	@testset "∇logprob with finite FiniteDifferences" begin
+
+	@testset "CPU version is correct" begin
 		n_categories = 10
 		n_dimension = 7
 		n_components = Int(2^3)
 		n_observations = 50
 
+		# Let's first verify that the cpu version of logprob is correct
 		logits = randn(Float32, n_categories, n_dimension, n_components);
 		x = rand(UInt8(1):UInt8(n_categories), n_dimension, n_observations);
 		log_probs, mx = logprob(logits, x)
@@ -19,9 +34,9 @@
 		@test ∇logits[1] ≈ grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob(logits, x), logits)[1]
 	end
 
-	# milans's settings 
-	n_categories = 10
-	n_dimension = 1600 # 16_000
+	# This is setting more aking to ContinousMixtures
+	n_categories = 256
+	n_dimension = 768
 	n_components = Int(2^14)
 	n_observations = 50
 

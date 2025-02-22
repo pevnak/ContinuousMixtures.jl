@@ -1,12 +1,6 @@
 include("cpu.jl")
 include("cuda.jl")
 
-function sumlogsumexp_logprob_reference(logits, x)
-	log_probs, max_ = logprob(logits, x)
-	sum(logsumexp(log_probs, dims = 1))
-end
-
-
 """
     sumlogsumexp_logprob(logits, x)
 
