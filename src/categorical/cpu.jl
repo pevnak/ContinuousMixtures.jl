@@ -64,7 +64,7 @@ Returns:
 function ∇logprob_fused(∇y, logits::Array{T, 3}, x::Array{<:Integer,2}, mx, logprobs, sumexp) where {T}
 	∇logits = similar(logits)
 	∇logits .= 0
-	for i in axes(logits,3) # index of the component
+	@inbounds for i in axes(logits,3) # index of the component
 	    for kᵢ in axes(logits,2)
 			for j in axes(x,2)
 				o = ∇y * exp(logprobs[i, j] - mx[j]) / sumexp[j]
