@@ -33,3 +33,45 @@ function ∇logprob(∇logprobs::Matrix{<:Real}, logits::Array{<:Real, 3}, x::Ma
 	∇logits
 end
 
+function sumlogsumexp(logprobs::AbstractMatrix, mx::AbstractVector)
+    o = zero(eltype(logprobs))
+    sumexp = similar(mx)
+    @inbounds for j in axes(logprobs,2)
+        oⱼ = zero(eltype(logprobs))
+        for i in axes(logprobs,1)
+            oⱼ += exp(logprobs[i,j] - mx[j])
+        end
+        sumexp[j] = oⱼ
+        o += log(oⱼ) + mx[j]
+    end
+    o, sumexp
+end
+
+"""
+Compute the gradient of the log probability of a categorical distribution.
+
+Arguments:
+- `∇y`: gradient of the log probability of the categorical distribution.
+- `logits`: logits of the categorical distribution.
+- `x`: indices of the categorical distribution.
+- `mx`: maximum of the logits.
+- `logprobs`: log probabilities of the categorical distribution.
+- `sumexp`: sum of the exponentials of the logits.
+
+Returns:
+- `∇logits`: gradient of the logits of the categorical distribution.
+"""
+function ∇logprob_fused(∇y, logits::Array{T, 3}, x::Array{<:Integer,2}, mx, logprobs, sumexp) where {T}
+	∇logits = similar(logits)
+	∇logits .= 0
+	for i in axes(logits,3) # index of the component
+	    for kᵢ in axes(logits,2)
+			for j in axes(x,2)
+				o = ∇y * exp(logprobs[i, j] - mx[j]) / sumexp[j]
+				xⱼ = x[kᵢ, j]
+				∇logits[xⱼ, kᵢ, i] += o
+			end
+		end
+	end
+	return(∇logits)
+end

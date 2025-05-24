@@ -1,4 +1,4 @@
-name = "SmoothMixtures"
+name = "ContinuousMixtures"
 uuid = "54fdbeb4-54c7-4597-8828-b334665b5794"
 authors = ["Tomas Pevny <pevnak@gmail.com>"]
 version = "0.1.0"

@@ -1,4 +1,4 @@
-# SmoothMixture.jl
+# ContinuousMixtures.jl
 
 This is a small library implementing *"Continuous mixtures of tractable probabilistic models.", Correira et al., Proceedings of the AAAI Conference on Artificial Intelligence. Vol. 37. No. 6. 2023.*. The repository was a created as the author was curious, if writing a small custom CUDA kernel can help to reduce memory issues of the original implementation. Therefore the repository is mainly designed to train with CUDA. It is also limited to model only Categorical distribution, which needs to be represented by `Integers` from `1,...,n`. For Normal distribution, you either need to add a kernel, or you can try to file an issue and write the main author.
 
@@ -7,9 +7,9 @@ What is the idea behind continuous mixture? The idea is to maximize likelihood o
 Let's demonstrate the library on a small example, where we generate random data.
 
 ```julia
-using SmoothMixtures
-using SmoothMixtures.CUDA
-using SmoothMixtures.Flux
+using ContinuousMixtures
+using ContinuousMixtures.CUDA
+using ContinuousMixtures.Flux
 using Random
 using Serialization
 
@@ -27,5 +27,8 @@ model = Chain(Dense(encoder_dim,64,leakyrelu),
 	x -> logsoftmax(x, dims = 1),
 	)
 
-model, centers, stats = train_model(model, data; n_categories, n_components, encoder_dim)
+model, centers, stats = train_mixture_model(model, data; n_categories, n_components, encoder_dim)
+
+# to obtain the logits of compoments, we need to project the latent, i.e.
+model(centers)
 ```

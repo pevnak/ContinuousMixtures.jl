@@ -1,7 +1,7 @@
 [deps]
+ContinuousMixtures = "54fdbeb4-54c7-4597-8828-b334665b5794"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
-SmoothMixtures = "54fdbeb4-54c7-4597-8828-b334665b5794"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"

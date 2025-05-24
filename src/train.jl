@@ -1,6 +1,6 @@
 """
-    train_model(data::AbstractArray; kwargs...)
-    train_model(data::AbstractArray, model; kwargs...)
+    train_mixture_model(data::AbstractArray; kwargs...)
+    train_mixture_model(data::AbstractArray, model; kwargs...)
 
 Train a smooth mixture model on the provided data.
 
@@ -12,7 +12,7 @@ Train a smooth mixture model on the provided data.
 - `n_categories::Int=2`: Number of categories for each dimension
 - `n_components::Int=2^10`: Number of mixture components
 - `hidden_dims::Union{NTuple{<:Any,Int}, Vector{Int}}=(128, 256, 512)`: Dimensions of hidden layers
-- `activation::Function=leakyrelu`: Activation function for hidden layers
+- `activation=leakyrelu`: Activation function for hidden layers
 - `encoder_dim::Int=64`: Dimension of the latent space for centers
 
 ## Training parameters
@@ -24,7 +24,7 @@ Train a smooth mixture model on the provided data.
 
 ## Device and miscellaneous
 - `device=gpu`: Device to use for training (gpu or cpu)
-- `verbose::Bool=true`: Whether to print progress information
+- `verbose=true`: Whether to print progress information
 - `checkpoint_path=nothing`: Path to save checkpoints
 
 # Returns
@@ -32,15 +32,15 @@ Train a smooth mixture model on the provided data.
 - `centers`: Optimized centers
 - `stats`: Dictionary with training statistics
 """
-function train_model(data::AbstractArray;n_categories::Int = maximum(data), hidden_dims::Vector{Int} = [128, 256, 512], activation::Function = leakyrelu, encoder_dim, kwargs...)
+function train_mixture_model(data::AbstractArray;n_categories::Int = maximum(data), hidden_dims = [128, 256, 512], activation = leakyrelu, encoder_dim, kwargs...)
     n_dimension = size(data_processed, 1)
     # Create model
     verbose && println("Creating model...")
     model = create_model(n_dimension, n_categories, hidden_dims, activation, encoder_dim)
-    train_model(model, data; n_categories, encoder_dim, kwargs...)
+    train_mixture_model(model, data; n_categories, encoder_dim, kwargs...)
 end
 
-function train_model(model, data::AbstractArray; encoder_dim, n_categories::Int = maximum(data), n_components::Int = 2^10, batchsize::Int = 256, max_epochs = 100, learning_rate = 1e-3, finetune_centers::Bool = true, finetune_epochs::Int = 10, device = gpu, verbose::Bool = true, checkpoint_path = nothing)
+function train_mixture_model(model, data::AbstractArray; encoder_dim, n_categories::Int = maximum(data), n_components::Int = 2^10, batchsize::Int = 256, max_epochs = 100, learning_rate = 1e-3, finetune_centers::Bool = true, finetune_epochs::Int = 10, device = gpu, verbose = true, checkpoint_path = nothing)
     model = device(model)
     # Process data
     verbose && println("Processing data...")
@@ -102,7 +102,7 @@ function train_model(model, data::AbstractArray; encoder_dim, n_categories::Int 
     if finetune_centers
         verbose && println("Finetuning centers for $finetune_epochs epochs...")
         centers = device(randn(Float32, encoder_dim, n_components))
-        centers, finetune_stats = finetune_centers(model, centers, data_device; batchsize, max_epochs=finetune_epochs, learning_rate, verbose)
+        centers, finetune_stats = finetune_mixture_centers(model, centers, data_device; batchsize, max_epochs=finetune_epochs, learning_rate, verbose)
         # Add finetuning stats to main stats
         stats["finetune_losses"] = finetune_stats["losses"]
         stats["finetune_bits_per_dim"] = finetune_stats["bits_per_dim"]
@@ -126,7 +126,7 @@ Create a mixture model with the specified architecture.
 - `n_categories::Int=2`: Number of categories for each dimension
 - `n_components::Int=2^10`: Number of mixture components
 - `hidden_dims::Union{NTuple{<:Any,Int}, Vector{Int}}=(128, 256, 512)`: Dimensions of hidden layers
-- `activation::Function=leakyrelu`: Activation function for hidden layers
+- `activation=leakyrelu`: Activation function for hidden layers
 - `encoder_dim::Int=64`: Dimension of the latent space for centers
 
 """
@@ -178,11 +178,11 @@ function preprocess_data(data::AbstractArray{<:Integer}, n_categories::Int)
 end
 
 """
-    finetune_centers(model, centers, data; kwargs...)
+    finetune_mixture_centers(model, centers, data; kwargs...)
 
 Finetune the centers of a mixture model.
 """
-function finetune_centers(model, centers, data; batchsize::Int = 256, max_epochs::Int = 10, learning_rate::Float32 = 1f-3, verbose::Bool = true)
+function finetune_mixture_centers(model, centers, data; batchsize::Int = 256, max_epochs::Int = 10, learning_rate = 1f-3, verbose = true)
     # Initialize optimizer for centers
     optimizer = Optimisers.Adam(learning_rate)
     opt_state = Optimisers.setup(optimizer, centers)

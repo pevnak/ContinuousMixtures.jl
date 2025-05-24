@@ -1,11 +1,11 @@
-using SmoothMixtures
-using SmoothMixtures.CUDA
+using ContinuousMixtures
+using ContinuousMixtures.CUDA
+using ContinuousMixtures.Flux
 using Test
 using Random
 using FiniteDifferences
-using Flux
 
-using SmoothMixtures: logprob, ∇logprob, sumlogsumexp_logprob
+using ContinuousMixtures: logprob, ∇logprob, sumlogsumexp_logprob
 
 
 """
@@ -16,8 +16,7 @@ function sumlogsumexp_logprob_reference(logits, x)
 	sum(logsumexp(log_probs, dims = 1))
 end
 
-@testset "Categorical distribution" begin 
-
+@testset "Categorical distribution" begin
 	@testset "CPU version is correct" begin
 		n_categories = 10
 		n_dimension = 7
@@ -28,6 +27,7 @@ end
 		logits = randn(Float32, n_categories, n_dimension, n_components);
 		x = rand(UInt8(1):UInt8(n_categories), n_dimension, n_observations);
 		log_probs, mx = logprob(logits, x)
+		@test ContinuousMixtures.sumlogsumexp(log_probs, mx)[1] ≈ sumlogsumexp_logprob_reference(logits, x)
 		@test grad(central_fdm(5, 1), logits -> sum(logprob(logits, x)[1]), logits)[1] ≈ ∇logprob(ones(Float32, n_components, n_observations), logits, x)
 
 		@test sumlogsumexp_logprob(logits, x) ≈ sumlogsumexp_logprob_reference(logits, x)
@@ -36,6 +36,10 @@ end
 		fval, ∇logits = Flux.Zygote.withgradient(logits -> sumlogsumexp_logprob(logits, x), logits)
 		@test fval ≈ sumlogsumexp_logprob_reference(logits, x)
 		@test ∇logits[1] ≈ grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob(logits, x), logits)[1]
+
+		fused_fval, fused_∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob_fused(logits, x), logits)
+		@test fval ≈ fused_fval
+		@test only(∇logits) ≈ only(fused_∇logits)
 	end
 
 	# assuming CPU version is correct
@@ -49,7 +53,7 @@ end
 
 			logits = randn(Float32, n_categories, n_dimension, n_components);
 			x = rand(UInt8(1):UInt8(n_categories), n_dimension, n_observations);
-			
+
 			cu_logits = CuArray(logits)
 			cu_x = CuArray(x)
 
@@ -60,14 +64,14 @@ end
 				@test mx ≈ vec(maximum(log_probs, dims = 1))
 				@test Vector(cu_mx) ≈ mx
 
-				@test sumlogsumexp_logprob_reference(logits, x) == SmoothMixtures.sumlogsumexp_logprob(logits, x)
-				@test SmoothMixtures.sumlogsumexp_logprob(cu_logits, cu_x) ≈ SmoothMixtures.sumlogsumexp_logprob(logits, x)
+				@test sumlogsumexp_logprob_reference(logits, x) == ContinuousMixtures.sumlogsumexp_logprob(logits, x)
+				@test ContinuousMixtures.sumlogsumexp_logprob(cu_logits, cu_x) ≈ ContinuousMixtures.sumlogsumexp_logprob(logits, x)
 			end
 
 			@testset "second kernel" begin
 				log_probs, mx = logprob(logits, x)
 				cu_logprobs, cu_mx = logprob(cu_logits, cu_x)
-				cu_lkl, cu_sumexp = SmoothMixtures.sumlogsumexp(cu_logprobs, cu_mx)
+				cu_lkl, cu_sumexp = ContinuousMixtures.sumlogsumexp(cu_logprobs, cu_mx)
 			    log_probs, mx = logprob(logits, x)
 			    sumexp = sum(exp.(log_probs .- mx'); dims = 1)
 
@@ -85,12 +89,12 @@ end
 				cu_∇logits = ∇logprob(cu_∇logprobs, cu_logits, cu_x)
 				@test Array(cu_∇logits) ≈ ∇logits
 
-				fval, ∇logits = Flux.Zygote.withgradient(logits -> SmoothMixtures.sumlogsumexp_logprob(logits, x), logits)
-				cu_fval, cu_∇logits = Flux.Zygote.withgradient(logits -> SmoothMixtures.sumlogsumexp_logprob(logits, cu_x), cu_logits)
+				fval, ∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob(logits, x), logits)
+				cu_fval, cu_∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob(logits, cu_x), cu_logits)
 				@test fval ≈ cu_fval
 				@test Array(∇logits[1]) ≈ Array(cu_∇logits[1])
 
-				cu_fval, cu_∇logits = Flux.Zygote.withgradient(logits -> SmoothMixtures.sumlogsumexp_logprob_fused(logits, cu_x), cu_logits)
+				cu_fval, cu_∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob_fused(logits, cu_x), cu_logits)
 				@test fval ≈ cu_fval
 				@test Array(∇logits[1]) ≈ Array(cu_∇logits[1])
 			end
