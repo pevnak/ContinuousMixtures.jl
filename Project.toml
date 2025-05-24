@@ -6,3 +6,9 @@ version = "0.1.0"
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
+
+[compat]
+Flux = "0.16.3"
+MLUtils = "0.4.8"

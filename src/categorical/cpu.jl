@@ -33,14 +33,3 @@ function ∇logprob(∇logprobs::Matrix{<:Real}, logits::Array{<:Real, 3}, x::Ma
 	∇logits
 end
 
-
-"""
-	sumlogsumexp_logprob(logits::Array{<:Real,3}, x::Matrix{<:Integer})
-
-	compute likelihood of `x` given `logits,` 
-	where logits defines a mixture of categorical distributions with uniform weight.
-"""
-function sumlogsumexp_logprob(logits::Array{<:Real,3}, x::Matrix{<:Integer})
-	log_probs, max_ = logprob(logits, x)
-	sum(max_' .+ log.(sum(exp.(log_probs .- max_'); dims = 1)))
-end

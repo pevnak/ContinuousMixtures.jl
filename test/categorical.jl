@@ -2,8 +2,9 @@ using SmoothMixtures
 using SmoothMixtures.CUDA
 using Test
 using Random
+using FiniteDifferences
+using Flux
 
-using FiniteDifferences, Flux
 using SmoothMixtures: logprob, ∇logprob, sumlogsumexp_logprob
 
 
