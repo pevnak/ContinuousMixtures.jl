@@ -48,17 +48,12 @@ function train_mixture_model(model, data::AbstractArray; encoder_dim, n_categori
     n_dimension = size(data_processed, 1)
     data_device = device(data_processed)
 
-    # Initialize optimizer
     optimizer = Optimisers.Adam(learning_rate)
     opt_state = Optimisers.setup(optimizer, model)
-
-    # Initialize training statistics
     stats = Dict("train_losses" => Float32[], "bits_per_dim" => Float32[], "best_loss" => Inf32)
 
-    # Training loop
     verbose && println("Starting model training for $max_epochs epochs...")
     best_model = deepcopy(model)
-
     for epoch in 1:max_epochs
         epoch_loss, steps = 0.0, 0
 
@@ -76,14 +71,14 @@ function train_mixture_model(model, data::AbstractArray; encoder_dim, n_categori
 
         # Calculate average loss
         avg_loss = epoch_loss / steps
-        bits_per_dim = -avg_loss / n_dimension / log(2)
+        bits_per_dim = avg_loss / n_dimension / log(2)
 
         # Store statistics
         push!(stats["train_losses"], avg_loss)
         push!(stats["bits_per_dim"], bits_per_dim)
 
         # Update best model if needed
-        if avg_loss < stats["best_loss"]
+        if avg_loss < minimum(stats["best_loss"])
             stats["best_loss"] = avg_loss
             best_model = deepcopy(model)
 
@@ -183,14 +178,11 @@ end
 Finetune the latents `zᵢ` of the mixture model which define the components
 """
 function finetune_mixture_latents(model, zᵢ, data; batchsize::Int=256, max_epochs::Int=10, learning_rate=1.0f-3, verbose=true)
-    # Initialize optimizer for latents
     optimizer = Optimisers.Adam(learning_rate)
     opt_state = Optimisers.setup(optimizer, zᵢ)
 
-    # Initialize statistics
     stats = Dict("losses" => Float32[], "bits_per_dim" => Float32[])
     n_dimension = size(data, 1)
-    # Finetune latents
     for epoch in 1:max_epochs
         epoch_loss, steps = 0.0, 0
 
@@ -207,7 +199,7 @@ function finetune_mixture_latents(model, zᵢ, data; batchsize::Int=256, max_epo
 
         # Calculate average loss
         avg_loss = epoch_loss / steps
-        bits_per_dim = -avg_loss / n_dimension / log(2)
+        bits_per_dim = avg_loss / n_dimension / log(2)
 
         # Store statistics
         push!(stats["losses"], avg_loss)
