@@ -48,7 +48,8 @@ function logprob_kernel!(log_probs, mx, logits, x, n_components, n_observations,
     return (nothing)
 end
 
-function logprob(logits::CuArray{<:Real,3}, x::CuArray{<:Integer,2})
+function logprob(m::CM, x::CuArray{<:Integer,2}) where {CM<:CategoricalMixture{<:CuArray}}
+    logits = m.logits
     n_components = size(logits, 3)
     n_observations = size(x, 2)
     n_dimension = size(logits, 2)
@@ -202,7 +203,8 @@ end
 
 	the gradient of the `logprob` with respect to the logits
 """
-function ∇logprob(∇logprobs::CuMatrix{T}, logits::CuArray{T,3}, x::CuArray{<:Integer,2}) where {T}
+function ∇logprob(∇logprobs::CuMatrix{T}, m::CM, x::CuArray{<:Integer,2}) where {T<:Real, CM<:CategoricalMixture{<:CuArray{T,3}}}
+    logits = m.logits
     n_components = size(logits, 3)
     n_observations = size(x, 2)
     n_dimension = size(logits, 2)
@@ -215,7 +217,7 @@ function ∇logprob(∇logprobs::CuMatrix{T}, logits::CuArray{T,3}, x::CuArray{<
 
     @cuda threads = cld(n_dimension, Δ) blocks = n_components ∇logprob_kernel!(∇logits, ∇logprobs, x, n_components, n_observations, n_dimension, n_categories, Δ)
 
-    return (∇logits, NoTangent())
+    return (Tangent{CM}(logits = ∇logits), NoTangent())
 end
 
 """
@@ -257,7 +259,8 @@ function ∇logprob_fused_kernel!(∇logits, ∇y, x, log_probs, mx, sumexp, n_c
     return (nothing)
 end
 
-function ∇logprob_fused(∇y, logits::CuArray{T,3}, x::CuArray{<:Integer,2}, mx, log_probs, sumexp) where {T}
+function ∇logprob_fused(∇y, m::CM, x::CuArray{<:Integer,2}, mx, log_probs, sumexp)  where {T<:Real, CM<:CategoricalMixture{<:CuArray{T,3}}}
+    logits = m.logits
     max_threads = 64
     n_components = size(logits, 3)
     n_observations = size(x, 2)
@@ -269,5 +272,5 @@ function ∇logprob_fused(∇y, logits::CuArray{T,3}, x::CuArray{<:Integer,2}, m
 
     @cuda threads = cld(n_dimension, Δ) blocks = n_components ∇logprob_fused_kernel!(∇logits, ∇y, x, log_probs, mx, sumexp, n_components, n_observations, n_dimension, Val(n_categories), Val(max_threads))
 
-    return (∇logits, NoTangent())
+    return (Tangent{CM}(logits = ∇logits), NoTangent())
 end

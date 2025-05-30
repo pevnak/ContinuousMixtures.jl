@@ -86,28 +86,28 @@ end
 			n_components = Int(2^rand(0:12))
 			n_observations = rand(1:50)
 
-			logits = randn(Float32, n_categories, n_dimension, n_components);
 			x = rand(UInt8(1):UInt8(n_categories), n_dimension, n_observations);
+			m = CategoricalMixture(randn(Float32, n_categories, n_dimension, n_components))
 
-			cu_logits = CuArray(logits)
-			cu_x = CuArray(x)
+			cu_x = cu(x)
+			cu_m = CategoricalMixture(cu(m.logits))
 
 			@testset "forward pass" begin
-				log_probs, mx = logprob(logits, x)
-				cu_logprobs, cu_mx = logprob(cu_logits, cu_x)
+				log_probs, mx = logprob(m, x)
+				cu_logprobs, cu_mx = logprob(cu_m, cu_x)
 				@test Matrix(cu_logprobs) ≈ log_probs
 				@test mx ≈ vec(maximum(log_probs, dims = 1))
 				@test Vector(cu_mx) ≈ mx
 
-				@test sumlogsumexp_logprob_reference(logits, x) == ContinuousMixtures.sumlogsumexp_logprob(logits, x)
-				@test ContinuousMixtures.sumlogsumexp_logprob(cu_logits, cu_x) ≈ ContinuousMixtures.sumlogsumexp_logprob(logits, x)
+				@test sumlogsumexp_logprob_reference(m, x) == ContinuousMixtures.sumlogsumexp_logprob(m, x)
+				@test ContinuousMixtures.sumlogsumexp_logprob(cu_m, cu_x) ≈ ContinuousMixtures.sumlogsumexp_logprob(m, x)
 			end
 
 			@testset "second kernel" begin
-				log_probs, mx = logprob(logits, x)
-				cu_logprobs, cu_mx = logprob(cu_logits, cu_x)
+				log_probs, mx = logprob(m, x)
+				cu_logprobs, cu_mx = logprob(cu_m, cu_x)
 				cu_lkl, cu_sumexp = ContinuousMixtures.sumlogsumexp(cu_logprobs, cu_mx)
-			    log_probs, mx = logprob(logits, x)
+			    log_probs, mx = logprob(m, x)
 			    sumexp = sum(exp.(log_probs .- mx'); dims = 1)
 
 			    @test cu_lkl ≈ sum(log.(cu_sumexp) .+ cu_mx)
@@ -116,22 +116,23 @@ end
 			end
 
 			@testset "backward pass" begin
-				∇logprobs = ones(Float32, n_components, n_observations)
-				cu_∇logprobs = CuArray(∇logprobs)
+				∇logprobs = randn(Float32, n_components, n_observations)
+				cu_∇logprobs = cu(∇logprobs)
 
-				∇logits = ∇logprob(∇logprobs, logits, x)
+				∇logits, ∇x = ∇logprob(∇logprobs, m, x)
 
-				cu_∇logits = ∇logprob(cu_∇logprobs, cu_logits, cu_x)
-				@test Array(cu_∇logits) ≈ ∇logits
+				cu_∇logits, cu_∇x = ∇logprob(cu_∇logprobs, cu_m, cu_x)
+				@test cu_∇x == NoTangent()
+				@test Array(cu_∇logits.logits) ≈ ∇logits.logits
 
-				fval, ∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob(logits, x), logits)
-				cu_fval, cu_∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob(logits, cu_x), cu_logits)
+				fval, ∇m = Flux.Zygote.withgradient(m -> ContinuousMixtures.sumlogsumexp_logprob(m, x), m)
+				cu_fval, cu_∇m = Flux.Zygote.withgradient(m -> ContinuousMixtures.sumlogsumexp_logprob(m, cu_x), cu_m)
 				@test fval ≈ cu_fval
-				@test Array(∇logits[1]) ≈ Array(cu_∇logits[1])
+				@test Array(∇m[1].logits) ≈ Array(cu_∇m[1].logits)
 
-				cu_fval, cu_∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob_fused(logits, cu_x), cu_logits)
+				cu_fval, cu_∇m = Flux.Zygote.withgradient(m -> ContinuousMixtures.sumlogsumexp_logprob_fused(m, cu_x), cu_m)
 				@test fval ≈ cu_fval
-				@test Array(∇logits[1]) ≈ Array(cu_∇logits[1])
+				@test Array(∇m[1].logits) ≈ Array(cu_∇m[1].logits)
 			end
 		end
 	end
