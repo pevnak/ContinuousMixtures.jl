@@ -23,13 +23,14 @@ This function iterates through all components, observations, and dimensions to c
 the log probability of each observation for each component. It then finds the maximum
 log probability for each observation for numerical stability in subsequent calculations.
 """
-function logprob(logits::Array{<:Real, 3}, x::Matrix{<:Integer})
+function logprob(m::CategoricalMixture, x::Matrix{<:Integer})
+	logits = m.logits
 	n_components = size(logits, 3)
 	n_observations = size(x,2)
 	n_dimension = size(logits, 2)
 	n_dimension == size(x,1) || error("dimension does not match")
 
-	log_probs = zeros(Float32, n_components, n_observations)
+	log_probs = zeros(eltype(logits), n_components, n_observations)
 	@inbounds for i in 1:n_components
 		for j in 1:n_observations
 			for k in 1:n_dimension
@@ -77,13 +78,14 @@ This gradient computation is used during model training with gradient-based opti
 like Adam or SGD. The function is designed to work with automatic differentiation
 systems and custom adjoints/pullbacks.
 """
-function ∇logprob(∇logprobs::Matrix{<:Real}, logits::Array{<:Real, 3}, x::Matrix{<:Integer})
+function ∇logprob(∇logprobs::Matrix{<:Real}, m::CM, x::Matrix{<:Integer}) where {T<:Real, CM<:CategoricalMixture{Array{T, 3}}}
+	logits = m.logits
 	n_components = size(logits, 3)
 	n_observations = size(x,2)
 	n_dimension = size(logits, 2)
 	n_dimension == size(x,1) || error("dimension does not match")
 
-	∇logits = zeros(Float32, size(logits,1), n_dimension, n_components)
+	∇logits = zeros(T, size(logits,1), n_dimension, n_components)
 	@inbounds for i in 1:n_components
 		for j in 1:n_observations
 			for k in 1:n_dimension
@@ -91,7 +93,7 @@ function ∇logprob(∇logprobs::Matrix{<:Real}, logits::Array{<:Real, 3}, x::Ma
 			end
 		end
 	end
-	∇logits
+	return(Tangent{CM}(logits = ∇logits), NoTangent())
 end
 
 """
@@ -160,7 +162,8 @@ Key performance optimizations include:
 This fused implementation is critical for efficient training of large mixture models,
 especially when used with automatic differentiation frameworks.
 """
-function ∇logprob_fused(∇y, logits::Array{T, 3}, x::Array{<:Integer,2}, mx, logprobs, sumexp) where {T}
+function ∇logprob_fused(∇y, m::CM, x::Array{<:Integer,2}, mx, logprobs, sumexp)  where {T<:Real, CM<:CategoricalMixture{Array{T, 3}}}
+	logits = m.logits
 	∇logits = similar(logits)
 	∇logits .= 0
 	@inbounds for i in axes(logits,3) # index of the component
@@ -172,5 +175,5 @@ function ∇logprob_fused(∇y, logits::Array{T, 3}, x::Array{<:Integer,2}, mx, 
 			end
 		end
 	end
-	return(∇logits)
+	return(Tangent{CM}(logits = ∇logits), NoTangent())
 end

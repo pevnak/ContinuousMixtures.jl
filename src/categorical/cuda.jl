@@ -144,7 +144,7 @@ end
 		likelihood is the log-sum-exp of all data
 		sumexp is the sum of the likelihood across components which is used in the gradient
 """
-function sumlogsumexp(log_probs::CuMatrix{<:Real}, mx::CuVector)
+function sumlogsumexp(log_probs::CuMatrix{<:Real}, mx::CuVector) 
     max_threads = 64
     n_components = size(log_probs, 1)
     n_observations = size(log_probs, 2)
@@ -215,7 +215,7 @@ function ∇logprob(∇logprobs::CuMatrix{T}, logits::CuArray{T,3}, x::CuArray{<
 
     @cuda threads = cld(n_dimension, Δ) blocks = n_components ∇logprob_kernel!(∇logits, ∇logprobs, x, n_components, n_observations, n_dimension, n_categories, Δ)
 
-    return (∇logits)
+    return (∇logits, NoTangent())
 end
 
 """
@@ -269,5 +269,5 @@ function ∇logprob_fused(∇y, logits::CuArray{T,3}, x::CuArray{<:Integer,2}, m
 
     @cuda threads = cld(n_dimension, Δ) blocks = n_components ∇logprob_fused_kernel!(∇logits, ∇y, x, log_probs, mx, sumexp, n_components, n_observations, n_dimension, Val(n_categories), Val(max_threads))
 
-    return (∇logits)
+    return (∇logits, NoTangent())
 end

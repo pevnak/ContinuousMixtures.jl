@@ -1,45 +1,80 @@
 using ContinuousMixtures
 using ContinuousMixtures.CUDA
 using ContinuousMixtures.Flux
+using ContinuousMixtures.ChainRulesCore
 using Test
 using Random
 using FiniteDifferences
+using Distributions
 
-using ContinuousMixtures: logprob, ∇logprob, sumlogsumexp_logprob
+using ContinuousMixtures: CategoricalMixture, logprob, ∇logprob, sumlogsumexp_logprob, sumlogsumexp_logprob_fused
 
+
+function logprob_reference(m::CategoricalMixture, x)
+	n_observations = size(x,2)
+	n_components = size(m.logits, 3)
+	n_dimension = size(m.logits, 2)
+	n_dimension == size(x,1) || error("dimension of observation do not match dimension of components")
+
+	logp = zeros(eltype(m.logits), n_components, n_observations)
+	for i in 1:n_components
+		for j in 1:n_observations
+			for k in axes(x,1)
+				logp[i,j] += logpdf(Categorical(softmax(m.logits[:,k,i])), x[k,j])
+			end
+		end
+	end
+	logp
+end
 
 """
 	Reference and naive implementation of sumlogsumexp_logprob
 """
-function sumlogsumexp_logprob_reference(logits, x)
-	log_probs, max_ = logprob(logits, x)
-	sum(logsumexp(log_probs, dims = 1))
+function sumlogsumexp_logprob_reference(m::CategoricalMixture, x)
+	logp, max_ = logprob(m::CategoricalMixture, x)
+	sum(logsumexp(logp, dims = 1))
 end
 
 @testset "Categorical distribution" begin
-	@testset "CPU version is correct" begin
+	@testset "CPU version" begin
 		n_categories = 10
 		n_dimension = 7
 		n_components = Int(2^3)
 		n_observations = 50
 
 		# Let's first verify that the cpu version of logprob is correct
-		logits = randn(Float32, n_categories, n_dimension, n_components);
+		m = CategoricalMixture(randn(Float64, n_categories, n_dimension, n_components));
 		x = rand(UInt8(1):UInt8(n_categories), n_dimension, n_observations);
-		log_probs, mx = logprob(logits, x)
-		@test ContinuousMixtures.sumlogsumexp(log_probs, mx)[1] ≈ sumlogsumexp_logprob_reference(logits, x)
-		@test grad(central_fdm(5, 1), logits -> sum(logprob(logits, x)[1]), logits)[1] ≈ ∇logprob(ones(Float32, n_components, n_observations), logits, x)
 
-		@test sumlogsumexp_logprob(logits, x) ≈ sumlogsumexp_logprob_reference(logits, x)
-		@test grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob(logits, x), logits)[1] ≈ grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob_reference(logits, x), logits)[1]
+		@testset "Distribution implementation equals ContinuousMixtures" begin
+			@test logprob(m, x)[1] ≈ logprob_reference(m, x)
+			@test ContinuousMixtures.sumlogsumexp(logprob(m, x)...)[1] ≈ sumlogsumexp_logprob_reference(m, x)
+			@test sumlogsumexp_logprob(m, x) ≈ sumlogsumexp_logprob_reference(m, x)
+		end
 
-		fval, ∇logits = Flux.Zygote.withgradient(logits -> sumlogsumexp_logprob(logits, x), logits)
-		@test fval ≈ sumlogsumexp_logprob_reference(logits, x)
-		@test ∇logits[1] ≈ grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob(logits, x), logits)[1]
+		@testset "Finite diff gradient of Distributions matches that of ContinuousMixtures" begin
+			@test grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob(CategoricalMixture(logits), x), m.logits)[1] ≈ grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob_reference(CategoricalMixture(logits), x), m.logits)[1]
+		end
 
-		fused_fval, fused_∇logits = Flux.Zygote.withgradient(logits -> ContinuousMixtures.sumlogsumexp_logprob_fused(logits, x), logits)
-		@test fval ≈ fused_fval
-		@test only(∇logits) ≈ only(fused_∇logits)
+		@testset "Automatic gradient of nonfused version" begin
+			fval, ∇logits = Flux.Zygote.withgradient(logits -> sumlogsumexp_logprob(CategoricalMixture(logits), x), m.logits)
+			∇logits = only(∇logits)
+			@test fval ≈ sumlogsumexp_logprob_reference(m, x)
+			@test grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob(CategoricalMixture(logits), x), m.logits)[1] ≈ ∇logits
+
+			fval, ∇x = Flux.Zygote.withgradient(x -> sumlogsumexp_logprob(m, x), x)
+			@test only(∇x) === nothing
+		end
+
+		@testset "Automatic gradient of fused version" begin
+			fval, ∇logits = Flux.Zygote.withgradient(logits -> sumlogsumexp_logprob_fused(CategoricalMixture(logits), x), m.logits)
+			∇logits = only(∇logits)
+			@test fval ≈ sumlogsumexp_logprob_reference(m, x)
+			@test grad(central_fdm(5, 1), logits -> sumlogsumexp_logprob_fused(CategoricalMixture(logits), x), m.logits)[1] ≈ ∇logits
+
+			fval, ∇x = Flux.Zygote.withgradient(x -> sumlogsumexp_logprob_fused(m, x), x)
+			@test only(∇x) === nothing
+		end
 	end
 
 	# assuming CPU version is correct

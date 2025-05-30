@@ -1,3 +1,12 @@
+struct CategoricalMixture{M<:AbstractArray{<:Real,3}}
+    logits::M
+    function CategoricalMixture(logits::M) where {M<:AbstractArray{<:Real,3}}
+        new{M}(logsoftmax(logits, dims = 1))
+    end
+end
+
+Base.show(io::IO, m::CategoricalMixture) = print(io, "CategoricalMixture (dim = $(size(m.logits,1)) comps = $(size(m.logits, 2))")
+
 include("cpu.jl")
 include("cuda.jl")
 
@@ -40,25 +49,25 @@ evaluate how well the model fits the data.
 - `sumlogsumexp_logprob_fused`: A more efficient implementation that fuses operations
 - `logprob`: Computes the component-wise log probabilities
 """
-function sumlogsumexp_logprob(logits, x)
-    log_probs, max_ = logprob(logits, x)
-    sum(max_' .+ log.(sum(exp.(log_probs .- max_'); dims = 1)))
+function sumlogsumexp_logprob(m, x)
+    logp, max_ = logprob(m, x)
+    sum(max_' .+ log.(sum(exp.(logp .- max_'); dims = 1)))
 end
 
-function ChainRulesCore.rrule(::typeof(sumlogsumexp_logprob), logits, x)
+function ChainRulesCore.rrule(::typeof(sumlogsumexp_logprob), m, x)
     # The gradient is `softmax`, but both compute `tmp` so it's worth saving.
-    log_probs, max_ = logprob(logits, x)
+    logp, max_ = logprob(m, x)
     max_ = max_'
 
     # this should be fused to the second kernel
-    tmp = exp.(log_probs .- max_)
+    tmp = exp.(logp .- max_)
     sum_tmp = sum(tmp; dims = 1)
     lkl = sum(max_ .+ log.(sum_tmp))
 
     function sumlogsumexp_pullback(dy)
-    	∇logprobs = unthunk(dy) .* tmp ./ sum_tmp
-    	∇logits = ∇logprob(∇logprobs, logits, x)
-    	(NoTangent(), ∇logits, NoTangent())
+    	∇logp = unthunk(dy) .* tmp ./ sum_tmp
+    	∇m, ∇x = ∇logprob(∇logp, m, x)
+    	(NoTangent(), ∇m, ∇x)
     end
     return lkl, sumlogsumexp_pullback
 end
@@ -109,19 +118,19 @@ minimizing the negative log likelihood is the optimization objective.
 - For gradient-based optimization, this function is paired with its gradient
   computation via ChainRulesCore.rrule
 """
-function sumlogsumexp_logprob_fused(logits, x)
-	log_probs, max_ = logprob(logits, x)
+function sumlogsumexp_logprob_fused(m, x)
+	log_probs, max_ = logprob(m, x)
 	lkl, sumexp = sumlogsumexp(log_probs, max_)
 	return(lkl)
 end
 
-function ChainRulesCore.rrule(::typeof(sumlogsumexp_logprob_fused), logits, x)
+function ChainRulesCore.rrule(::typeof(sumlogsumexp_logprob_fused), m, x)
     # The gradient is `softmax`, but both compute `tmp` so it's worth saving.
-    log_probs, max_ = logprob(logits, x)
+    log_probs, max_ = logprob(m, x)
     lkl, sumexp = sumlogsumexp(log_probs, max_)
     function sumlogsumexp_pullback(dy)
-    	∇logits = ∇logprob_fused(dy, logits, x, max_, log_probs, sumexp)
-    	(NoTangent(), ∇logits, NoTangent())
+    	∇m, ∇x = ∇logprob_fused(dy, m, x, max_, log_probs, sumexp)
+    	(NoTangent(), ∇m, ∇x)
     end
     return lkl, sumlogsumexp_pullback
 end
