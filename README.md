@@ -10,6 +10,7 @@ This means mixture component parameters are optimized implicitly through the gen
 Let's demonstrate the library on a small example on useless data
 ```julia
 using ContinuousMixtures
+
 using ContinuousMixtures.CUDA
 using ContinuousMixtures.Flux
 using Random
