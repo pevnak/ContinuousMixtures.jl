@@ -21,6 +21,7 @@ Base.show(io::IO, m::GaussianMixture) = print(io, "GaussianMixture (dim = $(size
 
 
 include("cpu.jl")
+include("cuda.jl")
 
 function ChainRulesCore.rrule(::typeof(sumlogsumexp_logprob), m::GaussianMixture, x)
     # The gradient is `softmax`, but both compute `tmp` so it's worth saving.
