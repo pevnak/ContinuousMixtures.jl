@@ -92,7 +92,7 @@ end
 			cu_x = cu(x)
 			cu_m = CategoricalMixture(cu(m.logits))
 
-			@testset "forward pass" begin
+			@testset "logprob forward pass" begin
 				log_probs, mx = logprob(m, x)
 				cu_logprobs, cu_mx = logprob(cu_m, cu_x)
 				@test Matrix(cu_logprobs) ≈ log_probs
@@ -103,7 +103,7 @@ end
 				@test ContinuousMixtures.sumlogsumexp_logprob(cu_m, cu_x) ≈ ContinuousMixtures.sumlogsumexp_logprob(m, x)
 			end
 
-			@testset "second kernel" begin
+			@testset "sumlogsumexp forward pass" begin
 				log_probs, mx = logprob(m, x)
 				cu_logprobs, cu_mx = logprob(cu_m, cu_x)
 				cu_lkl, cu_sumexp = ContinuousMixtures.sumlogsumexp(cu_logprobs, cu_mx)
