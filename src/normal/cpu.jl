@@ -1,4 +1,4 @@
- """
+"""
     logprob_normal(μ::Matrix{<:Real}, x::Matrix{<:Real})
 
 Compute the log probability of observations `x` given the categorical distribution parameters `logits`.
@@ -37,7 +37,7 @@ function logprob(m::GaussianMixture{Matrix{T},Matrix{T}}, x::Matrix{T}) where {T
 end
 
 
-function ∇logprob(∇logprobs::AbstractMatrix, m::GM, x::AbstractMatrix{T}) where {T<:Real, GM<:GaussianMixture{Matrix{T},Matrix{T}}}
+function ∇logprob(∇logp::AbstractMatrix, m::GM, x::AbstractMatrix{T}) where {T<:Real, GM<:GaussianMixture{Matrix{T},Matrix{T}}}
 	μ, Σ = m.μ, m.Σ
 	n_observations = size(x,2)
 	n_components = size(μ, 2)
@@ -50,9 +50,9 @@ function ∇logprob(∇logprobs::AbstractMatrix, m::GM, x::AbstractMatrix{T}) wh
 	for i in axes(μ,2)
 		for j in axes(x,2)
 			for k in 1:n_dimension
-				∇μ[k,i] -= (μ[k,i] - x[k, j])*∇logprobs[i,j]/Σ[k,i]
-				∇x[k,j] += (μ[k,i] - x[k, j])*∇logprobs[i,j]/Σ[k,i]
-				∇Σ[k,i] += ((μ[k,i] - x[k, j])^2/(2*Σ[k,i]^2) - 1/(2*Σ[k,i])) * ∇logprobs[i,j]
+				∇μ[k,i] -= (μ[k,i] - x[k, j])*∇logp[i,j]/Σ[k,i]
+				∇x[k,j] += (μ[k,i] - x[k, j])*∇logp[i,j]/Σ[k,i]
+				∇Σ[k,i] += ((μ[k,i] - x[k, j])^2/(2*Σ[k,i]^2) - 1/(2*Σ[k,i])) * ∇logp[i,j]
 			end
 		end
 	end

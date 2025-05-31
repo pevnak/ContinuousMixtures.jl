@@ -1,6 +1,6 @@
 
 """
-    logprob_kernel!(log_probs, mx, logits, x, n_components, n_observations, n_dimension)
+    logprob_categorical_kernel!(log_probs, mx, logits, x, n_components, n_observations, n_dimension)
 
 CUDA kernel for computing the log probability of observations for each component.
 
@@ -27,7 +27,7 @@ The kernel:
 The kernel uses thread synchronization to ensure proper initialization of the maximum
 values before parallel computation begins.
 """
-function logprob_kernel!(log_probs, mx, logits, x, n_components, n_observations, n_dimension)
+function logprob_categorical_kernel!(log_probs, mx, logits, x, n_components, n_observations, n_dimension)
     i = blockIdx().x # index of the component
     j = threadIdx().x # index of the observation (minibatch)
     if i == 1
@@ -58,7 +58,7 @@ function logprob(m::CM, x::CuArray{<:Integer,2}) where {CM<:CategoricalMixture{<
     log_probs = similar(logits, size(logits, 3), size(x, 2))
     max_ = similar(logits, n_observations)
 
-    @cuda threads = n_observations blocks = n_components logprob_kernel!(log_probs, max_, logits, x, n_components, n_observations, n_dimension)
+    @cuda threads = n_observations blocks = n_components logprob_categorical_kernel!(log_probs, max_, logits, x, n_components, n_observations, n_dimension)
 
     return (log_probs, max_)
 end
@@ -171,7 +171,7 @@ end
 	Moreover, since the `n_dims` can be larger than number of threads, the thread has to operate over small range
 	denoted as Δ.
 """
-function ∇logprob_kernel!(∇logits, ∇logprobs, x, n_components, n_observations, n_dimension, n_categories, Δ)
+function ∇logprob_categorical_kernel!(∇logits, ∇logprobs, x, n_components, n_observations, n_dimension, n_categories, Δ)
     i = blockIdx().x # index of the component
     k = threadIdx().x # index of the dimension of the logit
 
@@ -215,7 +215,7 @@ function ∇logprob(∇logprobs::CuMatrix{T}, m::CM, x::CuArray{<:Integer,2}) wh
 
     ∇logits = similar(logits, n_categories, n_dimension, n_components)
 
-    @cuda threads = cld(n_dimension, Δ) blocks = n_components ∇logprob_kernel!(∇logits, ∇logprobs, x, n_components, n_observations, n_dimension, n_categories, Δ)
+    @cuda threads = cld(n_dimension, Δ) blocks = n_components ∇logprob_categorical_kernel!(∇logits, ∇logprobs, x, n_components, n_observations, n_dimension, n_categories, Δ)
 
     return (Tangent{CM}(logits = ∇logits), NoTangent())
 end
