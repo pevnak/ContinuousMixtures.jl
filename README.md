@@ -26,7 +26,7 @@ model = Chain(Dense(encoder_dim,64,leakyrelu),
 	Dense(64, 128, leakyrelu),
 	Dense(128, n_categories * n_dimension, leakyrelu),
 	Base.Fix2(reshape, (n_categories, n_dimension, :)),
-	x -> logsoftmax(x, dims = 1),
+	CategoricalMixture,
 	)
 
 model, zᵢ, stats = train_mixture_model(model, data; n_categories, n_components, encoder_dim)
