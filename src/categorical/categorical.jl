@@ -5,7 +5,7 @@ struct CategoricalMixture{M<:AbstractArray{<:Real,3}}
     end
 end
 
-Base.show(io::IO, m::CategoricalMixture) = print(io, "CategoricalMixture (dim = $(size(m.logits,1)) comps = $(size(m.logits, 2))")
+Base.show(io::IO, m::CategoricalMixture) = print(io, "CategoricalMixture (dim = $(size(m.logits,1)) comps = $(size(m.logits, 2)))")
 
 include("cpu.jl")
 include("cuda.jl")

@@ -1,4 +1,5 @@
 [deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 ContinuousMixtures = "54fdbeb4-54c7-4597-8828-b334665b5794"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"

@@ -13,11 +13,19 @@ struct GaussianMixture{M<:AbstractMatrix,S<:AbstractMatrix}
 	Σ::S
 	function GaussianMixture(μ::M, Σ::S) where {M<:AbstractMatrix,S<:AbstractMatrix}
 		size(μ) == size(Σ) || error("dimension of mean and variance should be the same")
+		ϵ = eltype(Σ)(1e-6);
+		Σ = max.(Σ, ϵ)
 		new{M,S}(μ, Σ)
 	end
 end
 
-Base.show(io::IO, m::GaussianMixture) = print(io, "GaussianMixture (dim = $(size(m.μ,1)) comps = $(size(m.Σ, 2))")
+function GaussianMixture(θ::AbstractArray{T,3}; min_variance = 1f-6) where {T<:Real}
+	size(θ,1) == 2 || error("The first dimension has to be 2, since μ = θ[1,:,:] and Σ = softplus(θ[2,:,:])")
+	ϵ = T(min_variance)
+	GaussianMixture(θ[1,:,:], ϵ .* softplus.(θ[2,:,:]))
+end
+
+Base.show(io::IO, m::GaussianMixture) = print(io, "GaussianMixture (dim = $(size(m.μ,1)) comps = $(size(m.Σ, 2)))")
 
 
 include("cpu.jl")

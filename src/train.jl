@@ -1,6 +1,6 @@
 """
-    train_mixture_model(data::AbstractArray; kwargs...)
-    train_mixture_model(data::AbstractArray, model; kwargs...)
+    train_categorical_mixture_model(data::AbstractArray; kwargs...)
+    train_categorical_mixture_model(data::AbstractArray, model; kwargs...)
 
 Train a smooth mixture model on the provided data.
 
@@ -32,28 +32,34 @@ Train a smooth mixture model on the provided data.
 - `zᵢ`: Optimized latents, each column corresponds to one latent vector
 - `stats`: Dictionary with training statistics
 """
-function train_mixture_model(data::AbstractArray; n_categories::Int=maximum(data), hidden_dims=[128, 256, 512], activation=leakyrelu, encoder_dim, kwargs...)
+function train_categorical_mixture_model(data::AbstractArray; n_categories::Int=maximum(data), hidden_dims=[128, 256, 512], activation=leakyrelu, encoder_dim, kwargs...)
     n_dimension = size(data_processed, 1)
     # Create model
     verbose && println("Creating model...")
     model = create_model(n_dimension, n_categories, hidden_dims, activation, encoder_dim)
-    train_mixture_model(model, data; n_categories, encoder_dim, kwargs...)
+    data = preprocess_data(x, n_categories)
+    train_mixture_model(model, data; encoder_dim, kwargs...)
 end
 
-function train_mixture_model(model, data::AbstractArray; encoder_dim, n_categories::Int=maximum(data), n_components::Int=2^10, batchsize::Int=256, max_epochs=100, learning_rate=1e-3, finetune_latents::Bool=true, finetune_epochs::Int=10, device=gpu, verbose=true, checkpoint_path=nothing)
+function train_categorical_mixture_model(model, data::AbstractArray; n_categories::Int=maximum(data), kwargs...)
+    data = preprocess_data(x, n_categories)
+    train_mixture_model(model, data; encoder_dim, kwargs...)
+end
+
+function train_mixture_model(model, data::AbstractArray; encoder_dim, n_components::Int=2^10, batchsize::Int=256, max_epochs=100, learning_rate=1e-3, finetune_latents::Bool=true, finetune_epochs::Int=10, device=gpu, verbose=true, checkpoint_path=nothing)
     model = device(model)
     # Process data
     verbose && println("Processing data...")
-    data_processed = preprocess_data(data, n_categories)
-    n_dimension = size(data_processed, 1)
-    data_device = device(data_processed)
+    n_dimension = size(data, 1)
+    data_device = device(data)
 
     optimizer = Optimisers.Adam(learning_rate)
     opt_state = Optimisers.setup(optimizer, model)
     stats = Dict("train_losses" => Float32[], "bits_per_dim" => Float32[], "best_loss" => Inf32)
 
     verbose && println("Starting model training for $max_epochs epochs...")
-    best_model = deepcopy(model)
+    model =  trainmode!(model)
+    best_model = testmode!(deepcopy(model))
     for epoch in 1:max_epochs
         epoch_loss, steps = 0.0, 0
 
@@ -80,7 +86,7 @@ function train_mixture_model(model, data::AbstractArray; encoder_dim, n_categori
         # Update best model if needed
         if avg_loss < minimum(stats["best_loss"])
             stats["best_loss"] = avg_loss
-            best_model = deepcopy(model)
+            best_model = testmode!(deepcopy(model))
 
             # Save checkpoint if path is provided
             !isnothing(checkpoint_path) && serialize(checkpoint_path, best_model)

@@ -10,6 +10,6 @@ include("normal/normal.jl")
 export GaussianMixture
 
 include("train.jl")
-export train_mixture_model, create_model, finetune_mixture_latents
+export train_mixture_model, create_model, finetune_mixture_latents, train_categorical_mixture_model
 
 end

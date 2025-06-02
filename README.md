@@ -7,33 +7,86 @@ The repository addressed curiousity of author, who wanted to know if writing a s
 For those not familiar with Continous Mixture models (CMM), reading the original publication is strongly recommended. For others, here is a short recap. CMMs maximize likelihood of a mixture model `\sum_{i}p(x|zᵢ)` on the training set, where `zᵢ` are samples of normal distribution `N(0,I).` The key innovation is that latent variables `zᵢ` are sampled fresh at each optimization step, while the parameters being optimized belong to a generator network `p(x|zᵢ)` - typically a feed-forward neural network.
 This means mixture component parameters are optimized implicitly through the generator, allowing the model to represent an effectively infinite mixture with shared structure. After the generator `p(x|zᵢ)` is fitted, the latents can be generated and finetuned by optimizing `\sum_{i}p(x|zᵢ)` with respect to `zᵢ.`
 
-Let's demonstrate the library on a small example on useless data
+Let's demonstrate the library on a small example of fitting flower data. We first demonstrate the library on categorical distribution, therefore we will quantize flower to 40 levels
 ```julia
+using Test
 using ContinuousMixtures
-
 using ContinuousMixtures.CUDA
 using ContinuousMixtures.Flux
 using Random
 using Serialization
+using CairoMakie
 
-data = rand(1:5, 17, 1023)
+function flower(n;npetals = 8)
+    theta = 1:npetals
+    n = div(n, length(theta))
+    data = mapreduce(hcat, theta * (2pi/npetals)) do t
+        ct = cos(t)
+        st = sin(t)
 
-n_categories = 5
+        x0 = tanh.(randn(n) .- 1) .+ 4.0 .+ 0.05.* randn(n)
+        y0 = randn(n) .* 0.3
+
+        x = x0 * ct .- y0 * st
+        y = x0 * st .+ y0 * ct
+        Float32.([x y]')
+    end
+    clamp.(data ./ 5, -1f0, 1f0)
+end
+
+categorize(x::AbstractArray) = 1 .+ round.(Int, (1 .+ x) / 0.05)
+data = flower(10_000)
+data_i = categorize(data)
+
 n_dimension = size(data, 1)
-n_components = 32
+n_components = 1024
+encoder_dim = 16
+n_categories = maximum(data_i)
+
+model = Chain(Dense(encoder_dim, 64, leakyrelu),
+    BatchNorm(64),
+    Dense(64, 128, leakyrelu),
+    BatchNorm(128),
+    Dense(128, n_categories * n_dimension, leakyrelu),
+    BatchNorm(n_categories * n_dimension),
+    Dense(n_categories * n_dimension, n_categories * n_dimension),
+    Base.Fix2(reshape, (n_categories, n_dimension, :)),
+    CategoricalMixture,
+)
+
+model, zᵢ, stats = train_mixture_model(model, data_i; n_components, encoder_dim, max_epochs=2000, finetune_epochs = 0)    
+gmm = model(zᵢ)
+f(gmm, x, y) = ContinuousMixtures.sumlogsumexp_logprob(gmm, categorize(reshape(([x, y]),:,1)))
+heatmap(minimum(data[1,:]):0.1:maximum(data[1,:]), minimum(data[2,:]):0.1:maximum(data[2,:]), (x,y) -> exp(f(gmm, x, y)))
+```
+
+To fit the data using Gaussian mixture, we switch from `CategoricalMixture` to `GaussianMixture.`
+
+```julia
+
+data = flower(10_000)
+
+n_dimension = size(data, 1)
+n_components = 128
 encoder_dim = 16
 
-model = Chain(Dense(encoder_dim,64,leakyrelu),
-	Dense(64, 128, leakyrelu),
-	Dense(128, n_categories * n_dimension, leakyrelu),
-	Base.Fix2(reshape, (n_categories, n_dimension, :)),
-	CategoricalMixture,
-	)
+model = Chain(Dense(encoder_dim, 64, leakyrelu),
+    BatchNorm(64),
+    Dense(64, 128, leakyrelu),
+    BatchNorm(128),
+    Dense(128, 2 * n_dimension, leakyrelu),
+    BatchNorm(2 * n_dimension),
+    Dense(2 * n_dimension, 2 * n_dimension),
+    Base.Fix2(reshape, (2, n_dimension, :)),
+    GaussianMixture,
+)
 
-model, zᵢ, stats = train_mixture_model(model, data; n_categories, n_components, encoder_dim)
+model, zᵢ, stats = train_mixture_model(model, data; n_components, encoder_dim, max_epochs=2000, finetune_epochs = 100)    
+gmm = model(zᵢ)
+f(gmm, i, j) = ContinuousMixtures.sumlogsumexp_logprob(gmm, reshape(Float32.([i,j]),:,1))
+heatmap(minimum(data[1,:]):0.01:maximum(data[1,:]), minimum(data[2,:]):0.01:maximum(data[2,:]), (x,y) -> exp(f(gmm, x, y)))
 ```
-To obtain the logits of compoments, we need to project the latent, i.e. `model(zᵢ)`. The returned tensor has the format [logits, dimension, component],
-where `logits` are logits of categorical distribution, `dimention` is the dimention of the component, and `component` is the component.  `train_mixture_model` by default finetune the latents. See the help for options.
+
 
 
 The library exports two main functions:
