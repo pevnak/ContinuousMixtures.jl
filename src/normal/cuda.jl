@@ -73,7 +73,7 @@ end
 
 
 """
-	∇logprob(∇logprobs::CuMatrix{T}, logits::CuArray{T, 3}, x::CuArray{<:Integer,2}) where {T}
+	∇logprob(∇logp::CuMatrix{T}, logits::CuArray{T, 3}, x::CuArray{<:Integer,2}) where {T}
 
 	the gradient of the `logprob` with respect to the logits
 """
@@ -83,7 +83,7 @@ function ∇logprob(∇logp::CuMatrix{T}, m::CuGMM{T}, x::CuMatrix{T}) where {T<
     n_observations = size(x, 2)
     n_dimension = size(μ, 1)
     n_dimension == size(x, 1) || error("dimension does not match")
-    size(∇logprobs, 2) == n_observations || error("dimension does not match")
+    size(∇logp, 2) == n_observations || error("dimension does not match")
     Δ = cld(n_dimension, 1024)
 
     ∇μ, ∇Σ = similar(μ), similar(Σ)
@@ -133,7 +133,7 @@ function ∇logprob_fused(∇y, m::CuGMM{T}, x::CuMatrix{T}, mx, logp, sumexp)  
     n_observations = size(x, 2)
     n_dimension = size(μ, 1)
     n_dimension == size(x, 1) || error("dimension does not match")
-    size(∇logprobs, 2) == n_observations || error("dimension does not match")
+    size(∇logp, 2) == n_observations || error("dimension does not match")
     Δ = cld(n_dimension, max_threads)
     ∇μ, ∇Σ = similar(μ), similar(Σ)
 
