@@ -133,7 +133,6 @@ function ∇logprob_fused(∇y, m::CuGMM{T}, x::CuMatrix{T}, mx, logp, sumexp)  
     n_observations = size(x, 2)
     n_dimension = size(μ, 1)
     n_dimension == size(x, 1) || error("dimension does not match")
-    size(∇y, 2) == n_observations || error("dimension does not match")
     Δ = cld(n_dimension, max_threads)
     ∇μ, ∇Σ = similar(μ), similar(Σ)
 
